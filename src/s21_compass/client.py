@@ -13,6 +13,8 @@ from uuid import UUID
 
 import httpx
 
+from . import __version__
+
 API_URL = "https://platform.21-school.ru/services/21-school/api/v1"
 TOKEN_URL = "https://auth.21-school.ru/auth/realms/EduPowerKeycloak/protocol/openid-connect/token"
 CLIENT_ID = "s21-open-api"
@@ -210,6 +212,10 @@ def _response_error(status: int, *, auth: bool = False) -> School21Error:
     }
     if auth and status in {400, 401}:
         return School21Error(401, "Не удалось войти. Проверьте учётные данные.")
+    if auth and status == 403:
+        return School21Error(403, "Сервер авторизации School21 отклонил запрос (HTTP 403). "
+                             "Это не ошибка доступа к разделам. Проверьте вход на официальной "
+                             "платформе; если отказ сохраняется, обратитесь в поддержку School21.")
     return School21Error(status if 400 <= status <= 599 else 502,
                          messages.get(status, "School21 временно недоступна. Повторите попытку."))
 
@@ -242,8 +248,10 @@ class School21Client:
 
     def __init__(self, *, transport=None) -> None:
         self.login_name: str | None = None
-        self._http = httpx.AsyncClient(transport=transport, timeout=20, follow_redirects=False,
-                                      trust_env=False)
+        self._http = httpx.AsyncClient(
+            transport=transport, timeout=20, follow_redirects=False, trust_env=False,
+            headers={"User-Agent": f"S21-Compass/{__version__}", "Accept": "application/json"},
+        )
         self._access_token: str | None = None
         self._refresh_token: str | None = None
         self._expires_at = 0.0
@@ -283,6 +291,13 @@ class School21Client:
         # A delayed OAuth response must never resurrect a logged-out client.
         self._require_generation(generation)
         if response.status_code != 200:
+            if (response.status_code == 403
+                    and "text/html" in response.headers.get("content-type", "").lower()
+                    and "If you are not a bot" in response.text):
+                raise School21Error(403, "Защита сайта School21 заблокировала запрос авторизации "
+                                    "(HTTP 403), до проверки учётных данных. Если используете "
+                                    "VPN или прокси, попробуйте обычное подключение. Если отказ "
+                                    "сохраняется, обратитесь в поддержку School21.")
             invalid_grant = False
             try:
                 body = response.json()

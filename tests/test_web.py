@@ -136,6 +136,26 @@ async def test_login_failure_is_safe_and_preserves_existing_client(mock_web):
         assert (await web.get("/api/data/sales")).json() == {"viewer": "first"}
 
 
+async def test_auth_block_page_returns_safe_login_diagnostic_to_browser():
+    def factory():
+        transport = httpx.MockTransport(lambda request: httpx.Response(
+            403, headers={"Content-Type": "text/html"},
+            text="<h1>Forbidden</h1><p>If you are not a bot</p><p>private-marker</p>",
+        ))
+        return School21Client(transport=transport)
+
+    app = create_app(client_factory=factory)
+    async with browser(app) as web:
+        response = await web.post("/api/login", headers=await csrf_headers(web), json={
+            "username": "fixture-account", "password": "fixture-only", "login": "fixture-peer",
+        })
+        assert response.status_code == 403
+        assert "Защита сайта" in response.json()["error"]
+        assert "авторизации" in response.json()["error"]
+        assert "private-marker" not in response.text and "fixture-only" not in response.text
+        assert (await web.get("/api/session")).json()["authenticated"] is False
+
+
 @pytest.mark.parametrize("endpoint", ["/api/login", "/api/demo", "/api/logout"])
 @pytest.mark.parametrize("variant", ["missing", "wrong", "duplicate", "unicode", "other-session"])
 async def test_csrf_required_for_every_mutation(endpoint, variant):

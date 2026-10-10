@@ -596,6 +596,30 @@ async def test_auth_error_has_actionable_message_and_clears_password():
 
 
 @pytest.mark.asyncio
+async def test_auth_forbidden_keeps_safe_login_diagnostic_instead_of_section_error():
+    from s21_compass.client import School21Error
+
+    message = "Защита сайта School21 заблокировала запрос авторизации (HTTP 403)."
+
+    class BlockedLogin(FakeClient):
+        async def login(self, username, password, participant_login=None):
+            raise School21Error(403, message)
+
+    app = CompassApp(client=BlockedLogin(False))
+    async with app.run_test(size=(80, 24)) as pilot:
+        for key, value in (("username", "fixture-account"), ("password", "fixture-only"),
+                           ("participant-login", "fixture-peer")):
+            app.query_one(f"#{key}", Input).value = value
+        await pilot.click("#login")
+        await settled(app, pilot)
+        assert text(app, "#login-status") == message
+        assert "раздела" not in text(app, "#login-status")
+        assert app.query_one("#password", Input).value == ""
+        assert app.query_one("#login-panel").display
+        assert not app.query_one("#login", Button).disabled
+
+
+@pytest.mark.asyncio
 async def test_overview_collecting_expired_sections_returns_login():
     class ExpiredOverview(FakeClient):
         async def overview(self, login=None):

@@ -210,12 +210,12 @@ class CompassApp(App):
         yield Static("S21 Compass · неофициальный read-only клиент", id="brand", markup=False)
         with VerticalScroll(id="login-panel"):
             yield Static("Вход в Школу 21", markup=False)
-            yield Label("Аккаунт (username / email)")
-            yield Input(placeholder="Аккаунт", id="username")
+            yield Label("Логин платформы (обычно полный школьный email)")
+            yield Input(placeholder="your-nickname@student.21-school.ru", id="username")
             yield Label("Пароль — только в памяти на время входа")
             yield Input(password=True, placeholder="Пароль", id="password")
             yield Label("Никнейм участника (явно, может отличаться от аккаунта)")
-            yield Input(placeholder="participant nickname", id="participant-login")
+            yield Input(placeholder="your-nickname — без @student.21-school.ru", id="participant-login")
             with Horizontal(id="login-actions"):
                 yield Button("Войти", id="login", variant="primary")
                 yield Button("Демо", id="demo")
@@ -638,7 +638,7 @@ class CompassApp(App):
         except Exception as error:  # noqa: BLE001 - auth errors must stay on login screen
             if token == self.generation:
                 self.query_one("#login-status", Static).update(
-                    str(error.message) if getattr(error, "status", None) == 401 and
+                    str(error.message) if getattr(error, "status", None) in {401, 403} and
                     hasattr(error, "message") else error_message(error)
                 )
         finally:

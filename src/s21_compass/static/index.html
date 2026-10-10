@@ -28,12 +28,13 @@
         <p class="muted">Используй свой аккаунт платформы Школы 21.</p>
         <form id="login-form" aria-describedby="auth-message">
           <label for="username">Имя пользователя для входа</label>
-          <input id="username" name="username" autocomplete="username" required maxlength="254" placeholder="Имя пользователя или email">
+          <input id="username" name="username" autocomplete="username" required maxlength="254" placeholder="your-nickname@student.21-school.ru" aria-describedby="username-help">
+          <p id="username-help" class="field-help">Логин, с которым входишь на официальную платформу. Обычно это полный школьный email.</p>
           <label for="password">Пароль</label>
           <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024">
           <label for="login-nickname">Никнейм участника</label>
-          <input id="login-nickname" name="login" autocomplete="off" required maxlength="128" placeholder="Точный никнейм на платформе" aria-describedby="nickname-help">
-          <p id="nickname-help" class="field-help">Никнейм профиля может отличаться от имени для входа. Его можно поменять в кабинете.</p>
+          <input id="login-nickname" name="login" autocomplete="off" required maxlength="128" placeholder="your-nickname — без @student.21-school.ru" aria-describedby="nickname-help">
+          <p id="nickname-help" class="field-help">Только никнейм участника, без email-домена. Он может отличаться от имени для входа.</p>
           <button id="login-submit" class="button primary full-width" type="submit" disabled>Войти</button>
         </form>
         <div id="auth-message" class="auth-message" role="status" aria-live="polite">Подключаемся к локальному кабинету…</div>

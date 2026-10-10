@@ -288,7 +288,7 @@ async function authenticate(demo, body) {
     if (current === sessionGeneration) enterWorkspace(session);
   } catch (error) {
     if (current !== sessionGeneration || error.name === "AbortError") return;
-    $("auth-message").textContent = error.status === 401 ? "Не удалось войти. Проверь имя пользователя и пароль." : errorMessage(error); $("auth-message").classList.add("error");
+    $("auth-message").textContent = error.status === 401 ? "Не удалось войти. Проверь имя пользователя и пароль." : (error.message || "Не удалось подключиться к серверу авторизации School21."); $("auth-message").classList.add("error");
   } finally {
     if (body) body.password = "";
     if (current === sessionGeneration) { state.authBusy = false; authControls(); }

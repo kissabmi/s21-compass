@@ -151,6 +151,52 @@ async def test_safe_upstream_errors(status):
     await client.close()
 
 
+async def test_requests_identify_compass_consistently_for_auth_refresh_and_api():
+    from s21_compass import __version__
+
+    seen = []
+
+    def handle(request):
+        seen.append(request)
+        assert request.headers["user-agent"] == f"S21-Compass/{__version__}"
+        assert request.headers["accept"] == "application/json"
+        if request.method == "POST":
+            return tokens()
+        if len([r for r in seen if r.method == "GET"]) == 1:
+            return httpx.Response(401)
+        return httpx.Response(200, json={"sales": []})
+
+    client = School21Client(transport=httpx.MockTransport(handle))
+    await client.login("fixture-account", "fixture-only", "fixture-peer")
+    assert await client.get("sales") == {"sales": []}
+    assert [r.method for r in seen] == ["POST", "GET", "POST", "GET"]
+    await client.close()
+
+
+@pytest.mark.parametrize("blocked_page", [True, False])
+async def test_auth_forbidden_identifies_login_stage_without_echoing_response(blocked_page):
+    def handle(request):
+        if blocked_page:
+            return httpx.Response(403, headers={"Content-Type": "text/html; charset=UTF-8"},
+                                  text="<h1>Forbidden</h1><p>If you are not a bot, please "
+                                  "contact support.</p><p>private-marker</p>")
+        return httpx.Response(403, json={"error": "access_denied",
+                                        "error_description": "private-marker"})
+
+    client = School21Client(transport=httpx.MockTransport(handle))
+    with pytest.raises(School21Error) as error:
+        await client.login("fixture-account", "private-password", "fixture-peer")
+    message = str(error.value)
+    assert error.value.status == 403 and not client.authenticated
+    assert "авторизации" in message and "HTTP 403" in message
+    assert "private-marker" not in message and "private-password" not in message
+    if blocked_page:
+        assert "Защита сайта" in message and "до проверки учётных данных" in message
+    else:
+        assert "Защита сайта" not in message
+    await client.close()
+
+
 @pytest.mark.parametrize("kind,expected", [("timeout", 504), ("network", 502), ("json", 502)])
 async def test_network_timeout_and_malformed_json(kind, expected):
     def handle(request):
