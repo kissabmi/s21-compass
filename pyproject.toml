@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "s21-compass"
+version = "0.1.0"
+description = "Unofficial School21 companion: terminal UI and local web dashboard"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+  "httpx>=0.27,<1",
+  "textual>=2,<7",
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "pytest-asyncio>=0.24,<2", "ruff>=0.8,<1"]
+
+[project.scripts]
+s21-compass = "s21_compass.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/s21_compass"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100

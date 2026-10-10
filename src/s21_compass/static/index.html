@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#eff4f4">
+  <meta name="description" content="S21 Compass — неофициальный локальный кабинет участника Школы 21.">
+  <title>S21 Compass · учебное пространство</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">К содержимому</a>
+  <section id="login-screen" class="login-screen" aria-labelledby="login-title">
+    <div class="login-intro">
+      <div class="brand"><span class="compass-mark" aria-hidden="true">✳</span><span>S21 <strong>Compass</strong></span></div>
+      <div class="intro-copy">
+        <p class="intro-note">Неофициальный кабинет Школы 21</p>
+        <h1 id="login-title">Место, где виден<br>твой следующий шаг.</h1>
+        <p>Проекты, учебный прогресс и жизнь кампуса — в одном спокойном рабочем пространстве.</p>
+        <div class="campus-sketch" aria-hidden="true"><span class="sketch-desk"></span><span class="sketch-desk"></span><span class="sketch-desk"></span><span class="sketch-path"></span></div>
+      </div>
+      <p class="intro-footer">Только чтение данных. Самостоятельный локальный клиент.</p>
+    </div>
+    <div class="login-form-area">
+      <div class="login-form-wrap">
+        <h2>Войти в пространство</h2>
+        <p class="muted">Используй свой аккаунт платформы Школы 21.</p>
+        <form id="login-form" aria-describedby="auth-message">
+          <label for="username">Имя пользователя для входа</label>
+          <input id="username" name="username" autocomplete="username" required maxlength="254" placeholder="Имя пользователя или email">
+          <label for="password">Пароль</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024">
+          <label for="login-nickname">Никнейм участника</label>
+          <input id="login-nickname" name="login" autocomplete="off" required maxlength="128" placeholder="Точный никнейм на платформе" aria-describedby="nickname-help">
+          <p id="nickname-help" class="field-help">Никнейм профиля может отличаться от имени для входа. Его можно поменять в кабинете.</p>
+          <button id="login-submit" class="button primary full-width" type="submit" disabled>Войти</button>
+        </form>
+        <div id="auth-message" class="auth-message" role="status" aria-live="polite">Подключаемся к локальному кабинету…</div>
+        <div class="demo-entry"><button id="demo-button" class="button secondary full-width" type="button" disabled>Посмотреть демо</button><p class="field-help">Вымышленные данные. Аккаунт и подключение к платформе не нужны.</p></div>
+        <p class="privacy-note">Пароль используется для входа и очищается после отправки. Пароли и токены не сохраняются в браузере или на диске.</p>
+      </div>
+    </div>
+  </section>
+  <div id="workspace" class="workspace" hidden>
+    <aside class="sidebar" aria-label="Навигация кабинета">
+      <div class="brand"><span class="compass-mark" aria-hidden="true">✳</span><span>S21 <strong>Compass</strong></span></div>
+      <span id="demo-badge" class="demo-badge" hidden>Демо · вымышленные данные</span>
+      <nav id="navigation" aria-label="Разделы">
+        <button type="button" data-section="overview"><span aria-hidden="true">◫</span>Обзор</button>
+        <button type="button" data-section="projects"><span aria-hidden="true">▤</span>Проекты</button>
+        <button type="button" data-section="courses"><span aria-hidden="true">▥</span>Курсы</button>
+        <button type="button" data-section="progress"><span aria-hidden="true">↗</span>Прогресс</button>
+        <button type="button" data-section="events"><span aria-hidden="true">▦</span>События</button>
+        <button type="button" data-section="campus"><span aria-hidden="true">⌂</span>Кампус</button>
+        <button type="button" data-section="graph"><span aria-hidden="true">⌘</span>Дерево обучения</button>
+        <button type="button" data-section="sales"><span aria-hidden="true">◇</span>Распродажи</button>
+        <button type="button" data-section="peers"><span aria-hidden="true">◎</span>Поиск пира</button>
+      </nav>
+      <div class="sidebar-footer"><p>Неофициальный клиент<br><span class="muted">Доступ только для чтения</span></p><button id="logout-button" class="button secondary" type="button">Выйти</button></div>
+    </aside>
+    <div class="workspace-body">
+      <header class="topbar">
+        <form id="peer-context-form" class="peer-context"><label for="peer-context">Профиль участника</label><div class="input-action"><input id="peer-context" name="nickname" autocomplete="off" required maxlength="128" aria-label="Никнейм просматриваемого участника"><button class="button secondary" type="submit">Открыть</button></div></form>
+        <div class="topbar-actions"><span id="connection-label" class="connection-label">Локальная сессия</span><button id="refresh-button" class="button secondary" type="button">Обновить</button></div>
+      </header>
+      <main id="main" tabindex="-1">
+        <div class="page-heading"><div><p id="page-context" class="muted"></p><h1 id="page-title">Обзор</h1><p id="page-description" class="page-description"></p></div></div>
+        <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+         <div id="content" aria-label="Содержимое раздела"></div>
+      </main>
+      <footer class="workspace-footer">S21 Compass <span>Данные платформы · никакие изменения не отправляются</span></footer>
+    </div>
+  </div>
+  <dialog id="detail-dialog" aria-labelledby="detail-title">
+    <div class="dialog-heading"><h2 id="detail-title">Детали</h2><button id="close-dialog" class="button secondary" type="button" aria-label="Закрыть детали">Закрыть</button></div>
+    <div id="detail-content"></div>
+  </dialog>
+</body>
+</html>
