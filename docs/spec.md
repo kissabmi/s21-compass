@@ -36,12 +36,14 @@ Demo fixtures вымышлены, обозначены на обоих UI, schem
 Meaningful tests: auth form/URL, refresh rotation/401/429/сеть, browser isolation и
 CSRF, params/pagination, TUI navigation/detail/logout, browser+mobile flow.
 
-OIDC discovery доступен. Успешный live login и реальные защищённые ответы до
-локального ввода учётных данных владельцем остаются not tested.
+OIDC discovery доступен. 10.10.2026 подтверждены успешный live login и
+защищённое read-only чтение по всем 25 маршрутам; отдельные upstream ID могут
+возвращать ошибку, поэтому это не обещание доступности любых данных.
 
 ## Источники
 
 - https://platform.21-school.ru/docs
+- https://platform.21-school.ru/services/21-school/api/swagger
 - https://auth.21-school.ru/auth/realms/EduPowerKeycloak/.well-known/openid-configuration
 - https://github.com/ikaelfess/school21_api_sdk/blob/main/openapi.yaml (community mirror)
 

@@ -1,7 +1,10 @@
 # Resource and UI matrix
 
-Pinned DTO source: `ikaelfess/school21_api_sdk`, commit
-`57bab5d98984aa5a147624de68a5bae734bd1f4a`, `openapi.yaml`. Paths below append to
+Official current source (checked 2026-10-10):
+https://platform.21-school.ru/services/21-school/api/swagger — 25 paths, 25 GET
+operations, 41 schemas. Structurally matches the pinned community mirror
+`ikaelfess/school21_api_sdk`, commit `57bab5d98984aa5a147624de68a5bae734bd1f4a`,
+`openapi.yaml`. Paths below append to
 `https://platform.21-school.ru/services/21-school/api/v1`; **all are GET**.
 L/O = limit 1..1000 / offset >=0. Responses have no total or cursor. Next is
 possible when len(items)==limit; next page may be empty. Filter change resets offset.
@@ -55,4 +58,6 @@ TUI includes keyboard guidance; web adapts to 375px and keyboard navigation.
 R-PROJECT is complete only after independently checked source is visible in public
 `https://github.com/kissabmi/s21-compass` and remote commit matches local accepted
 commit. Owner explicitly approved this delivery on 10.10.2026. Local package alone
-is partial. Authenticated upstream smoke remains a separately stated live blocker.
+is partial. Authenticated read-only smoke succeeded on 2026-10-10; private account
+data is excluded from public evidence. Not every upstream resource has data or
+returns success for every ID/account.

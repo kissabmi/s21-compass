@@ -395,7 +395,7 @@ class School21Client:
             raise _response_error(401) from None
 
     async def get(self, path: str, params: dict | None = None) -> dict | list | float:
-        _, encoded, _, query = validate_resource(path, params)
+        resource, encoded, _, query = validate_resource(path, params)
         if not self.authenticated:
             raise _response_error(401)
         generation = self._generation
@@ -418,6 +418,10 @@ class School21Client:
                         if revision == self._revision:
                             self._clear_auth()
                 raise _response_error(response.status_code)
+            # The live API returns HTTP 200 with no body when no workstation is assigned.
+            # Do not generalize that quirk to required JSON resources or fabricate a seat.
+            if resource.template == "participants/{login}/workstation" and not response.content:
+                return {}
             try:
                 payload = response.json()
                 if isinstance(payload, bool) or not isinstance(payload, (dict, list, int, float)):

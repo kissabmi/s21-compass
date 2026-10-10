@@ -11,8 +11,8 @@ const $ = (id) => document.getElementById(id);
 const segment = (value) => encodeURIComponent(String(value));
 const participantPath = (login = state.login) => `participants/${segment(login)}`;
 const statuses = {
-  ASSIGNED: "Назначен", REGISTERED: "Зарегистрирован", IN_PROGRESS: "В работе",
-  IN_REVIEWS: "На проверке", ACCEPTED: "Принят", FAILED: "Не принят",
+  ASSIGNED: "Назначен / ещё не начат", REGISTERED: "Зарегистрирован", IN_PROGRESS: "В работе",
+  IN_REVIEWS: "На проверке", ACCEPTED: "Принят", FAILED: "Проверка не пройдена",
   ACTIVE: "Активен", NON_ACTIVE: "Не проводится", PLANNED: "Запланировано",
   TEMPORARY_BLOCKING: "Временно заблокирован", EXPELLED: "Отчислен", BLOCKED: "Заблокирован",
   FROZEN: "Обучение приостановлено", STUDY_COMPLETED: "Обучение завершено",
@@ -77,6 +77,17 @@ function loading() { const node = append(el("div", "load-state"), el("span", "lo
 function inspector(data) {
   const node = el("details", "raw-inspector");
   return append(node, el("summary", "", "Полный ответ API"), el("pre", "", JSON.stringify(data, null, 2)));
+}
+function help(title, paragraphs) {
+  const node = append(el("details", "section-help"), el("summary", "", title));
+  paragraphs.forEach((paragraph) => node.append(el("p", "", paragraph)));
+  return node;
+}
+function studyHelp() {
+  return help("Что означают статусы?", [
+    "Назначен / ещё не начат (ASSIGNED) — проект или курс назначен участнику. Зарегистрирован (REGISTERED) — зарегистрирован; В работе (IN_PROGRESS) — выполняется; На проверке (IN_REVIEWS) — проходит проверку проекта.",
+    "Принят (ACCEPTED) — принят платформой. Проверка не пройдена (FAILED) — отдельный результат проверки, а не все проекты, которые ещё не приняты. Фильтр выбирает один точный статус и сразу загружает первую страницу.",
+  ]);
 }
 function createScope() { return new AbortController(); }
 function errorMessage(error) {
@@ -178,6 +189,68 @@ function select(id, options, value = "") {
 function input(id, type = "text", value = "") {
   const node = el("input"); node.id = id; node.type = type; node.value = value; return node;
 }
+// Search only the supplied API records; aliases never create campus options.
+function searchKey(value) {
+  const letters = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ж: "zh", з: "z", и: "i", й: "i", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "kh", ц: "ts", ч: "ch", ш: "sh", щ: "shch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" };
+  return String(value ?? "").normalize("NFKC").toLocaleLowerCase("ru").replace(/ё/g, "е").replace(/[а-я]/g, (letter) => letters[letter]).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+const cityAliases = [
+  ["Москва", "Moscow", "Moskva"],
+  ["Санкт-Петербург", "Saint Petersburg", "St Petersburg", "Sankt Peterburg", "Петербург", "СПб"],
+  ["Нижний Новгород", "Nizhny Novgorod", "Nizhniy Novgorod", "Nizhnii Novgorod"],
+  ["Великий Новгород", "Veliky Novgorod", "Velikiy Novgorod", "Velikii Novgorod"],
+  ["Якутск", "Yakutsk", "Iakutsk"],
+  ["Йошкар-Ола", "Yoshkar Ola", "Ioshkar Ola"],
+  ["Орёл", "Orel", "Oryol"],
+  ["Ханты-Мансийск", "Khanty Mansiysk", "Khanty Mansiisk"],
+  ["Ташкент", "Tashkent", "Toshkent"],
+];
+function matchesSearch(value, query) {
+  const haystack = searchKey(value), compact = haystack.replace(/\s/g, "");
+  const aliases = cityAliases.filter((names) => names.some((name) => compact.includes(searchKey(name).replace(/\s/g, "")))).flat().map(searchKey).join(" ");
+  const searchable = `${haystack} ${aliases}`.replace(/\s/g, "");
+  return searchKey(query).split(/\s+/).every((token) => searchable.includes(token));
+}
+function searchableChoice(id, entries, { label, placeholder = "Выбери вариант", value = "" } = {}) {
+  const search = input(`${id}-search`, "search"), picker = select(id, [], value);
+  search.placeholder = "Часть названия, по-русски или латиницей";
+  const hint = el("p", "field-help"); hint.id = `${id}-help`; hint.setAttribute("role", "status");
+  search.setAttribute("aria-describedby", hint.id); picker.setAttribute("aria-describedby", hint.id);
+  const node = append(el("div", "searchable-choice"), field(`Поиск: ${label.toLocaleLowerCase("ru")}`, search), field(label, picker), hint);
+  let selected = String(value);
+  function draw() {
+    const matched = entries.filter((entry) => matchesSearch(entry.label, search.value));
+    const chosen = entries.find((entry) => String(entry.id) === selected);
+    const options = [["", placeholder], ...matched.map((entry) => [String(entry.id), entry.label])];
+    if (chosen && !matched.includes(chosen)) options.push([selected, `Выбран: ${chosen.label}`]);
+    picker.replaceChildren(...options.map(([key, caption]) => { const option = el("option", "", caption); option.value = key; return option; }));
+    picker.value = chosen ? selected : "";
+    hint.textContent = matched.length ? `Совпадений: ${matched.length} из ${entries.length}. Поиск меняет варианты, а не выбранный кампус.` : `Совпадений нет. Измени или очисти поиск.${chosen ? ` Выбранный кампус сохранён: ${chosen.label}.` : ""}`;
+  }
+  search.addEventListener("input", draw);
+  picker.addEventListener("change", () => { selected = picker.value; draw(); });
+  draw();
+  return { node, picker, search };
+}
+function campusChoices(payload) {
+  return list(payload, "campuses").filter((item) => item?.id).map((item) => ({ id: item.id, label: [item.shortName, item.fullName].filter(Boolean).filter((name, index, names) => names.indexOf(name) === index).join(" · ") || String(item.id) }));
+}
+function searchableList(host, entries, { id, label, value = "", scope, pageOnly = false, describe, render, onSearch = () => {} }) {
+  const search = input(id, "search", value), hint = el("p", "field-help"), result = el("div");
+  hint.id = `${id}-help`; hint.textContent = pageOnly ? "Поиск только среди уже загруженных записей этой страницы. Для других записей используй «Далее»." : "Поиск среди всех записей этого загруженного списка.";
+  search.setAttribute("aria-describedby", hint.id);
+  host.append(field(label, search), hint, result);
+  function draw() {
+    if (scope?.signal.aborted) return;
+    onSearch(search.value);
+    const matched = entries.filter((entry) => matchesSearch(describe(entry), search.value));
+    result.replaceChildren();
+    if (matched.length) render(matched, result);
+    else result.append(empty("По этому поиску ничего не найдено", pageOnly ? "Измени или очисти поиск, либо перейди на другую страницу. Фильтр не загружает дополнительные страницы." : "Измени или очисти поиск."));
+  }
+  search.addEventListener("input", draw); draw();
+  return search;
+}
 function statusOptions(course = false) {
   return [["", "Все статусы"], ...["ASSIGNED", "REGISTERED", "IN_PROGRESS", ...(course ? [] : ["IN_REVIEWS"]), "ACCEPTED", "FAILED"].map((key) => [key, statuses[key]])];
 }
@@ -215,22 +288,32 @@ function peerBrowser(host, path, scope, { project = false } = {}) {
   const filters = el("form", "filters");
   const limit = select("peer-page-size", pageOptions(), "25");
   filters.append(field("На странице", limit));
-  let statusFilter, campusFilter;
+  let statusFilter, campusFilter, campusHost;
   if (project) {
     statusFilter = select("project-peer-status", statusOptions());
-    campusFilter = input("project-peer-campus"); campusFilter.placeholder = "UUID кампуса (необязательно)";
-    campusFilter.pattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
-    filters.append(field("Статус проекта", statusFilter), field("Кампус", campusFilter));
+    campusHost = el("div", "campus-filter");
+    filters.append(field("Статус проекта", statusFilter), campusHost);
   }
   const apply = el("button", "button secondary", "Применить"); apply.type = "submit"; filters.append(apply);
   const result = el("div"); host.append(filters, result);
+  if (project) {
+    loadBlock(campusHost, (local) => data("campuses", {}, local), (payload, target) => {
+      const choices = campusChoices(payload);
+      if (!choices.length) return target.append(empty("Список кампусов пуст", "Участники показаны по всем кампусам."));
+      const choice = searchableChoice("project-peer-campus", choices, { label: "Кампус участников", placeholder: "Все кампусы" });
+      campusFilter = choice.picker; target.append(choice.node);
+      campusFilter.addEventListener("change", applyFilters);
+    }, scope);
+  }
   let params = {};
   const run = loadBlock(result, (local) => data(path, { ...params, ...paging }, local), (payload, target) => { peers(target, payload, scope); pager(target, list(payload, "participants").length, paging, run); }, scope);
-  filters.addEventListener("submit", (event) => {
-    event.preventDefault(); paging.offset = 0; paging.limit = Number(limit.value);
-    params = project ? { status: statusFilter.value, campusId: campusFilter.value.trim() } : {};
+  function applyFilters() {
+    paging.offset = 0; paging.limit = Number(limit.value);
+    params = project ? { status: statusFilter.value, campusId: campusFilter?.value || "" } : {};
     run();
-  });
+  }
+  filters.addEventListener("submit", (event) => { event.preventDefault(); applyFilters(); });
+  limit.addEventListener("change", applyFilters); statusFilter?.addEventListener("change", applyFilters);
 }
 
 function beginSessionOperation() {
@@ -387,9 +470,16 @@ function renderStudies(kind) {
   const filter = select(`${kind}-status`, statusOptions(kind === "courses"), settings.status), limit = select(`${kind}-limit`, pageOptions(), String(settings.limit));
   const apply = el("button", "button primary", "Применить"); apply.type = "submit";
   form.append(field("Статус", filter), field("На странице", limit), apply);
-  const result = panel(kind === "courses" ? "Учебные курсы" : "Проекты участника"), host = el("div"); result.append(host); $("content").append(form, result);
-  const run = loadBlock(host, (local) => data(`${participantPath(login)}/${kind}`, settings, local), (payload, target) => { projectRows(target, payload, kind, login, scope); pager(target, list(payload, kind).length, settings, run); }, scope);
-  form.addEventListener("submit", (event) => { event.preventDefault(); settings.status = filter.value; settings.limit = Number(limit.value); settings.offset = 0; run(); });
+  const result = panel(kind === "courses" ? "Учебные курсы" : "Проекты участника"), host = el("div"); result.append(studyHelp(), host); $("content").append(form, result);
+  const run = loadBlock(host, (local) => data(`${participantPath(login)}/${kind}`, settings, local), (payload, target) => {
+    const entries = list(payload, kind);
+    if (entries.length) searchableList(target, entries, { id: `${kind}-search`, label: "Поиск на текущей странице", value: state.settings[`${kind}Search`] || "", scope, pageOnly: true, describe: (item) => `${item.title || ""} ${item.id ?? item.projectId ?? item.courseId ?? ""}`, render: (items, rows) => projectRows(rows, { [kind]: items }, kind, login, scope), onSearch: (value) => { state.settings[`${kind}Search`] = value; } });
+    else projectRows(target, payload, kind, login, scope);
+    pager(target, entries.length, settings, run);
+  }, scope);
+  function applyFilters() { settings.status = filter.value; settings.limit = Number(limit.value); settings.offset = 0; run(); }
+  form.addEventListener("submit", (event) => { event.preventDefault(); applyFilters(); });
+  filter.addEventListener("change", applyFilters); limit.addEventListener("change", applyFilters);
 }
 function renderProgress() {
   const scope = pageScope, login = state.login, grid = el("div", "section-grid"); $("content").append(grid);
@@ -431,12 +521,12 @@ function renderConditions(host, groups) {
   const section = append(el("section", "detail-section"), el("h3", "", "Условия старта"));
   const entries = el("ul", "conditions");
   groups.forEach((group) => {
-    const rules = (group.rulesInGroup || []).map((rule) => {
+    const rules = (Array.isArray(group?.rulesInGroup) ? group.rulesInGroup : []).filter(Boolean).map((rule) => {
       const value = rule.value || {};
-      const operands = (value.value || []).map((item) => item.value ?? item.key).join(", ");
+      const operands = (Array.isArray(value.value) ? value.value : []).filter(Boolean).map((item) => item.value ?? item.key).filter((item) => item !== undefined && item !== null).join(", ");
       return [rule.logicalOperator, value.fieldName, value.subFieldValue, value.operator, operands].filter(Boolean).join(" ");
     });
-    entries.append(el("li", "", [group.logicalOperator, ...rules].filter(Boolean).join(" ") || "Условие не описано; смотри полный ответ API."));
+    entries.append(el("li", "", [group?.logicalOperator, ...rules].filter(Boolean).join(" ") || "Условие не описано; смотри полный ответ API."));
   });
   section.append(entries); host.append(section);
 }
@@ -446,7 +536,7 @@ function openStudy(kind, id, login = null) {
   const catalogHost = el("div"), participantHost = el("div"); host.append(catalogHost);
   loadBlock(catalogHost, (local) => data(`${kind}/${segment(id)}`, {}, local), (catalog, target) => {
     $("detail-title").textContent = catalog.title || `${kind === "courses" ? "Курс" : "Проект"} ${id}`;
-    target.append(el("p", "detail-description", text(catalog.description)), facts([["ID", text(catalog.projectId ?? catalog.courseId ?? id)], ["Тип", types[catalog.type] || text(catalog.type)], ["Длительность", number(catalog.durationHours, " ч")], ["XP за выполнение", number(catalog.xp)]]));
+    target.append(el("p", "detail-description", text(catalog.description)), facts([["ID", text(catalog.projectId ?? catalog.courseId ?? id)], ["Тип", types[catalog.type] || text(catalog.type)], ["Длительность по каталогу", number(catalog.durationHours, " ч")], ["XP за выполнение", number(catalog.xp)]]), help("Как понимать длительность и условия старта?", ["durationHours — длительность из каталога в часах, не дата дедлайна участника. Logtime — среднее время за неделю, а не оставшееся время.", "Ни положение в дереве, ни отдельная связь не подтверждают, что проект уже можно начать. Ниже показаны startConditions из карточки API; сравни их с прогрессом участника. Если условия отсутствуют, ответ API сам по себе не подтверждает доступность старта."]));
     if (catalog.courseId !== undefined && catalog.courseId !== null && kind === "projects") target.append(button("Открыть связанный курс", () => openStudy("courses", catalog.courseId), "text-button"));
     renderConditions(target, catalog.startConditions); target.append(inspector(catalog));
   }, scope);
@@ -518,8 +608,8 @@ function renderCampus() {
   loadBlock(host, (local) => data("campuses", {}, local), (payload, target) => {
     const entries = list(payload, "campuses");
     if (!entries.length) return target.append(empty("Кампусы не найдены"));
-    const picker = select("campus-choice", [["", "Выбери кампус"], ...entries.map((item) => [item.id, item.shortName || item.fullName])], state.settings.campusId || "");
-    target.append(field("Кампус", picker));
+    const choice = searchableChoice("campus-choice", campusChoices(payload), { label: "Кампус", placeholder: "Выбери кампус", value: state.settings.campusId || "" });
+    const picker = choice.picker; target.append(choice.node);
     function choose() {
       if (scope.signal.aborted) return;
       selectionScope?.abort(); selectionScope = createScope(); detail.replaceChildren();
@@ -529,18 +619,24 @@ function renderCampus() {
       if (!picker.value) return;
       const campus = entries.find((item) => item.id === picker.value), local = selectionScope;
       const info = panel(campus?.fullName || campus?.shortName || "Кампус");
-      info.append(button("Пиры кампуса", () => openPeerList("Пиры кампуса", `campuses/${segment(picker.value)}/participants`)));
+      const campusId = picker.value;
+      info.append(button("Пиры кампуса", () => openPeerList("Пиры кампуса", `campuses/${segment(campusId)}/participants`)));
       const clusters = panel("Кластеры"), clusterHost = el("div"), coalitions = panel("Коалиции"), coalitionHost = el("div");
       clusters.append(clusterHost); coalitions.append(coalitionHost); detail.append(info, clusters, coalitions);
-      loadBlock(clusterHost, (pending) => data(`campuses/${segment(picker.value)}/clusters`, {}, pending), (response, result) => {
+      loadBlock(clusterHost, (pending) => data(`campuses/${segment(campusId)}/clusters`, {}, pending), (response, result) => {
         const items = list(response, "clusters"); if (!items.length) return result.append(empty("Кластеры не найдены"));
-        const rows = el("div", "cluster-list"); items.forEach((item) => rows.append(append(el("article", "choice-row"), append(el("div"), el("h3", "", item.name), el("p", "", `Этаж ${number(item.floor)} · Свободно ${number(item.availableCapacity)} из ${number(item.capacity)}`)), button("Места", () => openSeats(item.id, item.name))))); result.append(rows);
+        searchableList(result, items, { id: "cluster-search", label: "Поиск по кластерам кампуса", scope: local, describe: (item) => `${item.name || ""} ${item.floor ?? ""}`, render: (matched, target) => {
+          const rows = el("div", "cluster-list"); matched.forEach((item) => rows.append(append(el("article", "choice-row"), append(el("div"), el("h3", "", item.name), el("p", "", `Этаж ${number(item.floor)} · Свободно ${number(item.availableCapacity)} из ${number(item.capacity)}`)), button("Места", () => openSeats(item.id, item.name))))); target.append(rows);
+        } });
       }, local);
       const paging = { offset: 0, limit: 25 };
-      const run = loadBlock(coalitionHost, (pending) => data(`campuses/${segment(picker.value)}/coalitions`, paging, pending), (response, result) => {
+      let coalitionSearch = "";
+      const run = loadBlock(coalitionHost, (pending) => data(`campuses/${segment(campusId)}/coalitions`, paging, pending), (response, result) => {
         const items = list(response, "coalitions");
         if (!items.length) result.append(empty("Коалиций на этой странице нет"));
-        else { const rows = el("div", "coalition-list"); items.forEach((item) => rows.append(append(el("article", "choice-row"), append(el("div"), el("h3", "", item.name)), button("Участники", () => openPeerList(item.name || "Коалиция", `coalitions/${segment(item.coalitionId)}/participants`))))); result.append(rows); }
+        else searchableList(result, items, { id: "coalition-search", label: "Поиск коалиций на текущей странице", value: coalitionSearch, scope: local, pageOnly: true, describe: (item) => item.name, onSearch: (value) => { coalitionSearch = value; }, render: (matched, target) => {
+          const rows = el("div", "coalition-list"); matched.forEach((item) => rows.append(append(el("article", "choice-row"), append(el("div"), el("h3", "", item.name)), button("Участники", () => openPeerList(item.name || "Коалиция", `coalitions/${segment(item.coalitionId)}/participants`))))); target.append(rows);
+        } });
         pager(result, items.length, paging, run);
       }, local);
     }
@@ -573,13 +669,20 @@ function renderGraph() {
   const scope = pageScope, form = el("form", "filters"), search = input("graph-search", "search", state.settings.graphSearch || "");
   search.placeholder = "Группа, код проекта или курса";
   form.append(field("Поиск по дереву", search));
-  const root = panel("Маршрут обучения"), host = el("div"); root.append(host); $("content").append(form, root);
+  const root = panel("Маршрут обучения"), host = el("div");
+  root.append(help("Как читать дерево и проверить доступность проекта?", [
+    "Группа — узел дерева. Внутри показаны проекты и курсы; линии API связывают группы или конкретные элементы. Входящая связь ведёт в эту группу, исходящая — из неё: это ориентир маршрута, а не подтверждение права начать проект.",
+    "Нажми на проект или курс: карточка загрузит его фактические startConditions (условия старта). Сравни условия с прогрессом участника; сами связи дерева не доказывают, что все условия выполнены.",
+    "Code — короткий код, показанный на кнопке, например C2. ID проекта или курса (entityId) — идентификатор для загрузки карточки; ID узла и элемента дерева обозначают структуру графа. Это разные поля.",
+    "Поиск работает по всем загруженным группам, кодам и ID проекта/курса, без отдельного запроса поиска к API. Группа показывается целиком, если совпало её название или любой элемент.",
+    "PRP — Peer Review Points, CRP — Code Review Points: отдельные виды баллов проверки. Logtime — среднее время за неделю; durationHours — длительность по каталогу. Они не задают дату дедлайна. Статусы и результаты участника смотри в «Проектах» или «Курсах».",
+  ]), studyHelp(), host); $("content").append(form, root);
   form.addEventListener("submit", (event) => event.preventDefault());
   loadBlock(host, (local) => data("graph", {}, local), (payload, target) => {
     const nodes = list(payload, "nodes"), edges = list(payload, "edges"), result = el("div"); target.append(result);
     const byId = new Map(nodes.map((node) => [String(node.id), node]));
     const byHandle = new Map();
-    nodes.forEach((node) => (node.items || []).forEach((item) => (item.handles || []).forEach((handle) => byHandle.set(handle, item))));
+    nodes.forEach((node) => (node.items || []).filter(Boolean).forEach((item) => (item.handles || []).forEach((handle) => byHandle.set(handle, item))));
     function endpoint(nodeId, handle) {
       const item = byHandle.get(handle);
       if (item) return button(item.code || `ID ${item.entityId}`, () => openStudy(item.entityType === "COURSE" ? "courses" : "projects", item.entityId), "text-button");
@@ -588,22 +691,22 @@ function renderGraph() {
     function draw() {
       if (scope.signal.aborted) return;
       state.settings.graphSearch = search.value;
-      const query = search.value.trim().toLocaleLowerCase("ru"); result.replaceChildren();
-      const matched = nodes.filter((node) => !query || `${node.label} ${(node.items || []).map((item) => `${item.code} ${item.entityId}`).join(" ")}`.toLocaleLowerCase("ru").includes(query));
+      result.replaceChildren();
+      const matched = nodes.filter((node) => matchesSearch(`${node.label || ""} ${(node.items || []).filter(Boolean).map((item) => `${item.code || ""} ${item.entityId ?? ""}`).join(" ")}`, search.value));
       if (!matched.length) { result.append(empty(nodes.length ? "Ничего не найдено" : "Дерево пока пустое", nodes.length ? "Попробуй другое название или код." : "На платформе пока нет узлов дерева.")); return; }
       result.append(el("p", "graph-count", `Групп: ${matched.length} из ${nodes.length}. Связей в дереве: ${edges.length}.`));
       const groups = el("div", "graph-groups");
       matched.forEach((node) => {
         const group = append(el("section", "graph-group"), el("h3", "", node.label || node.id)), items = el("div", "graph-items");
-        (node.items || []).forEach((item) => {
+        (node.items || []).filter(Boolean).forEach((item) => {
           const action = button("", () => openStudy(item.entityType === "COURSE" ? "courses" : "projects", item.entityId));
           action.append(el("span", "", item.code || item.id), el("small", "", item.entityType === "COURSE" ? "Курс" : "Проект")); items.append(action);
         }); group.append(items);
         const incoming = edges.filter((edge) => String(edge.target) === String(node.id)), outgoing = edges.filter((edge) => String(edge.source) === String(node.id));
         if (incoming.length || outgoing.length) {
           const dependencies = el("ul", "dependency-list");
-          incoming.forEach((edge) => dependencies.append(append(el("li"), document.createTextNode("Предшествует: "), endpoint(edge.source, edge.sourceHandle), document.createTextNode(" → "), endpoint(edge.target, edge.targetHandle))));
-          outgoing.forEach((edge) => dependencies.append(append(el("li"), document.createTextNode("Следующий шаг: "), endpoint(edge.source, edge.sourceHandle), document.createTextNode(" → "), endpoint(edge.target, edge.targetHandle))));
+          incoming.forEach((edge) => dependencies.append(append(el("li"), document.createTextNode("Входящая связь: "), endpoint(edge.source, edge.sourceHandle), document.createTextNode(" → "), endpoint(edge.target, edge.targetHandle))));
+          outgoing.forEach((edge) => dependencies.append(append(el("li"), document.createTextNode("Исходящая связь: "), endpoint(edge.source, edge.sourceHandle), document.createTextNode(" → "), endpoint(edge.target, edge.targetHandle))));
           group.append(dependencies);
         } else group.append(el("p", "graph-count", "У этой группы нет связей в ответе платформы."));
         groups.append(group);

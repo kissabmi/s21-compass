@@ -606,6 +606,29 @@ async def test_invalid_success_payload_is_safe(payload):
     await client.close()
 
 
+async def test_empty_live_workstation_is_absent_without_hiding_other_empty_responses():
+    def handle(request):
+        if request.method == "POST":
+            return tokens()
+        if request.url.path.endswith("/workstation"):
+            return httpx.Response(200, content=b"")
+        if request.url.path.endswith("/sales"):
+            return httpx.Response(200, content=b"")
+        if request.url.path.endswith("/logtime"):
+            return httpx.Response(200, json=0.0)
+        return httpx.Response(200, json={})
+
+    client = School21Client(transport=httpx.MockTransport(handle))
+    await client.login("fixture-account", "fixture-only", "fixture-peer")
+    assert await client.get("participants/fixture-peer/workstation") == {}
+    overview = await client.overview()
+    assert overview["workstation"] == {} and "workstation" not in overview["errors"]
+    with pytest.raises(School21Error) as error:
+        await client.get("sales")
+    assert error.value.status == 502
+    await client.close()
+
+
 async def test_int64_offsets_and_int32_resource_bounds():
     from s21_compass.client import validate_resource
 

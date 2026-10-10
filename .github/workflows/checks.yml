@@ -13,5 +13,6 @@ jobs:
       - run: uv sync --python ${{ matrix.python-version }} --extra dev
       - run: uv run ruff check .
       - run: node --check src/s21_compass/static/app.js
+      - run: node --test tests/test_ui.js
       - run: uv run pytest
       - run: uv build

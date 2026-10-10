@@ -16,6 +16,8 @@ message, never upstream credential/token response body.
   otherwise username before @ is only a suggestion. Both UI expose editable nickname.
 - `async get(path: str, params: dict | None = None) -> dict | list | float`:
   whitelist resources, base `/api/v1`, optional leading slash; encoded segments.
+  Observed live workstation quirk: HTTP200 empty body -> {} (no assigned seat),
+  only on participant workstation route; other empty successful payloads are errors.
 - `async overview(login: str | None = None) -> dict`: keys `participant`, `points`,
   `logtime`, `feedback`, `skills`, `badges`, `coalition`, `workstation`, `errors`
   (mapping section->safe string). Independent errors collected.
@@ -60,6 +62,8 @@ __init__.py, cli.py, packaging, README/LICENSE/CI, docs, integrations/public pre
 
 ## Upstream reference
 
+Current official spec: https://platform.21-school.ru/services/21-school/api/swagger
+checked2026-10-10;25GETroutes41schemas, structurally equal to pinned mirror below.
 Pinned community OpenAPI: https://raw.githubusercontent.com/ikaelfess/school21_api_sdk/57bab5d98984aa5a147624de68a5bae734bd1f4a/openapi.yaml
 Local ignored copy: `.autopilot/school21-client-20261010/reference/openapi.yaml`.
 Wrappers: projects/courses/skills/badges/events/campuses/clusters/coalitions/sales;
